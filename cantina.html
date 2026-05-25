@@ -702,6 +702,24 @@ body {
 @media (max-width: 420px) {
   .select-row { flex-direction: column; }
 }
+
+/* ============ VIEWER MODE (non-editor) ============ */
+body.viewer-mode .fab-add { display: none; }
+body.viewer-mode .wine-actions { display: none; }
+body.viewer-mode .wine { padding-bottom: 14px; }
+.viewer-badge {
+  display: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  background: rgba(168, 145, 126, 0.12);
+  padding: 3px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+body.viewer-mode .viewer-badge { display: inline-block; }
 </style>
 </head>
 <body>
@@ -741,6 +759,7 @@ body {
   <h1 class="cover-title">La Cantina</h1>
   <h1 class="cover-title">dei Vini</h1>
   <div class="cover-subtitle">Selezione della Cantina Privata</div>
+  <span class="viewer-badge">👁️ Sola visualizzazione</span>
   <div class="cover-ornament"><span>◆ ◆ ◆</span></div>
   <div class="cover-stats">
     <span><b id="statEtichette">0</b> Etichette</span>
@@ -936,7 +955,9 @@ const firebaseConfig = {
   messagingSenderId: "857567473703",
   appId: "1:857567473703:web:05eb27d6104cdc9c30de02"
 };
-const AUTHORIZED_EMAILS = ["cris.palman1707@gmail.com"];
+// Email autorizzate a MODIFICARE (aggiungere, modificare, cancellare).
+// Chiunque con account Google verificato può LEGGERE.
+const EDITOR_EMAILS = ["cris.palman1707@gmail.com"];
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -952,7 +973,6 @@ try {
 const provider = new GoogleAuthProvider();
 
 // Timeout di fallback: se Firebase non risponde entro 5s, mostra login screen
-// (utile per debug e se ci sono problemi di rete)
 let firstAuthEvent = false;
 setTimeout(() => {
   if (!firstAuthEvent) {
@@ -966,6 +986,7 @@ setTimeout(() => {
 const state = {
   wines: [],
   currentUser: null,
+  isEditor: false,
   editingId: null,
   filters: { category: 'all', region: 'all', price: 'all', search: '' }
 };
@@ -1055,22 +1076,27 @@ onAuthStateChanged(auth, async (user) => {
   firstAuthEvent = true;
   if (!user) {
     state.currentUser = null;
+    state.isEditor = false;
     loginScreen.classList.add('visible');
     mainApp.classList.remove('visible');
     loadingScreen.classList.add('hidden');
     return;
   }
-  // Verifica autorizzazione
-  if (!AUTHORIZED_EMAILS.includes(user.email.toLowerCase())) {
-    loginError.textContent = `Email ${user.email} non autorizzata. Contatta l'amministratore.`;
+  // Verifica email verificata (sicurezza minima)
+  if (!user.emailVerified) {
+    loginError.textContent = `L'email ${user.email} non è verificata.`;
     loginError.classList.add('visible');
     loginLoading.classList.remove('visible');
     await signOut(auth);
     return;
   }
   state.currentUser = user;
+  state.isEditor = EDITOR_EMAILS.includes(user.email.toLowerCase());
   loginScreen.classList.remove('visible');
   mainApp.classList.add('visible');
+  // Mostra/nascondi pulsanti di modifica
+  document.body.classList.toggle('editor-mode', state.isEditor);
+  document.body.classList.toggle('viewer-mode', !state.isEditor);
   // Avatar
   const av = $('#userAvatar');
   if (user.photoURL) {
